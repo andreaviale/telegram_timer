@@ -3,8 +3,6 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import os
-import pytz
-from collections import defaultdict
 
 LOG_FILE = "log.json"
 user_start_times = {}
@@ -34,6 +32,7 @@ def save_log(entry):
 def get_user_monthly_stats(user_id):
     logs = load_logs()
     sessions = []
+    today_sessions = 0
     temp = {}
 
     for entry in logs:
@@ -50,6 +49,9 @@ def get_user_monthly_stats(user_id):
                 sessions.append(duration)
                 temp = {}  # reset for next pair
 
+        if timestamp.year == now.year and timestamp.month == now.month and timestamp.day == now.day and entry["action"] == "end":
+            today_sessions += 1
+
     total_sessions = len(sessions)
     if total_sessions == 0:
         avg_duration = "N/A"
@@ -59,7 +61,7 @@ def get_user_monthly_stats(user_id):
         avg_duration = str(round(avg_seconds // 60)) + " min"
         max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
 
-    return total_sessions, avg_duration, max_duration
+    return total_sessions, avg_duration, max_duration, today_sessions
 
 # /start handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,11 +104,12 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "duration": str(duration)
     })
 
-    total_sessions, avg_duration, max_duration = get_user_monthly_stats(user_id)
+    total_sessions, avg_duration, max_duration, today_sessions = get_user_monthly_stats(user_id)
 
     await update.message.reply_text(
         f"User: {username}\n"
         f"⏱ Session duration: {formatted_duration}\n"
+        f"📅 Today's sessions: {today_sessions}\n"
         f"📅 This month's sessions: {total_sessions}\n"
         f"📊 Average duration: {avg_duration}\n"
         f"💪 Max duration: {max_duration}\n"
