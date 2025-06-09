@@ -208,7 +208,7 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     plot_buf = generate_plot(user_id)
     if plot_buf:
-        await update.message.reply_photo(photo=plot_buf, caption="📊 This month's session")
+        await update.message.reply_photo(photo=plot_buf, caption="📊 This month's sessions")
 
 
 # Run the bot
