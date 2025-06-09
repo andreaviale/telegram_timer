@@ -53,11 +53,13 @@ def get_user_monthly_stats(user_id):
     total_sessions = len(sessions)
     if total_sessions == 0:
         avg_duration = "N/A"
+        max_duration = "N/A"
     else:
         avg_seconds = sum([s.total_seconds() for s in sessions]) / total_sessions
         avg_duration = str(round(avg_seconds // 60)) + " min"
+        max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
 
-    return total_sessions, avg_duration
+    return total_sessions, avg_duration, max_duration
 
 # /start handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -100,12 +102,14 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "duration": str(duration)
     })
 
-    total_sessions, avg_duration = get_user_monthly_stats(user_id)
+    total_sessions, avg_duration, max_duration = get_user_monthly_stats(user_id)
 
     await update.message.reply_text(
+        f"User: {username}\n"
         f"⏱ Session duration: {formatted_duration}\n"
         f"📅 This month's sessions: {total_sessions}\n"
-        f"📊 Average duration: {avg_duration}"
+        f"📊 Average duration: {avg_duration}\n"
+        f"💪 Max duration: {max_duration}\n"
     )
 
 # Run the bot
