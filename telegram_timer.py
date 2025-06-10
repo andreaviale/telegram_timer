@@ -142,7 +142,7 @@ def generate_timeline_plot(user_id):
     ax.set_xticks(range(0, 1441, 60))  # ogni ora
     ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 25)],rotation=45)
     ax.set_xlabel("Time")
-    ax.set_title("Session intervals")
+    ax.set_title("Consistency")
 
     plt.tight_layout()
 
