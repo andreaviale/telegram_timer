@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import os
@@ -14,7 +14,7 @@ def format_duration(td):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    return f"{hours:02}:{minutes:02}:{seconds:02}"
+    return f"{hours:02}h {minutes:02}m {seconds:02}s"
 
 # Load existing logs
 def load_logs():
@@ -204,11 +204,44 @@ def generate_gaussian_plot(user_id):
     plt.close()
     return buf
 
+def get_user_daily_stats(user_id):
+    logs = load_logs()
+    sessions = []
+    temp = {}
+    total_duration = 0
+
+    for entry in logs:
+        if entry["user_id"] != user_id:
+            continue
+
+        timestamp = datetime.fromisoformat(entry["timestamp"])
+        now = datetime.now()
+        if timestamp.year == now.year and timestamp.month == now.month and timestamp.date() == now.date():
+            if entry["action"] == "start":
+                temp["start"] = timestamp
+            elif entry["action"] == "end" and "start" in temp:
+                duration = timestamp - temp["start"]
+                sessions.append(duration)
+                total_duration += duration.total_seconds()
+                temp = {}  # reset for next pair
+
+    total_sessions = len(sessions)
+    if total_sessions == 0:
+        avg_duration = "N/A"
+        max_duration = "N/A"
+    else:
+        avg_seconds = sum([s.total_seconds() for s in sessions]) / total_sessions
+        avg_duration = str(round(avg_seconds // 60)) + " min"
+        max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
+        total_duration_formatted = format_duration(timedelta(seconds=total_duration))
+
+    return total_sessions, avg_duration, max_duration, total_duration_formatted
+
 # Get user stats for current month
 def get_user_monthly_stats(user_id):
     logs = load_logs()
     sessions = []
-    today_sessions = 0
+    total_duration = 0
     temp = {}
 
     for entry in logs:
@@ -223,10 +256,8 @@ def get_user_monthly_stats(user_id):
             elif entry["action"] == "end" and "start" in temp:
                 duration = datetime.fromisoformat(entry["timestamp"]) - temp["start"]
                 sessions.append(duration)
+                total_duration += duration.total_seconds()
                 temp = {}  # reset for next pair
-
-        if timestamp.year == now.year and timestamp.month == now.month and timestamp.day == now.day and entry["action"] == "end":
-            today_sessions += 1
 
     total_sessions = len(sessions)
     if total_sessions == 0:
@@ -236,14 +267,15 @@ def get_user_monthly_stats(user_id):
         avg_seconds = sum([s.total_seconds() for s in sessions]) / total_sessions
         avg_duration = str(round(avg_seconds // 60)) + " min"
         max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
+        total_duration_formatted = format_duration(timedelta(seconds=total_duration))
 
-    return total_sessions, avg_duration, max_duration, today_sessions
+    return total_sessions, avg_duration, max_duration, total_duration_formatted
 
 # Get user stats for current year
 def get_user_yearly_stats(user_id):
     logs = load_logs()
     sessions = []
-    today_sessions = 0
+    total_duration = 0
     temp = {}
 
     for entry in logs:
@@ -258,6 +290,7 @@ def get_user_yearly_stats(user_id):
             elif entry["action"] == "end" and "start" in temp:
                 duration = datetime.fromisoformat(entry["timestamp"]) - temp["start"]
                 sessions.append(duration)
+                total_duration += duration.total_seconds()
                 temp = {}  # reset for next pair
 
     total_sessions = len(sessions)
@@ -268,8 +301,9 @@ def get_user_yearly_stats(user_id):
         avg_seconds = sum([s.total_seconds() for s in sessions]) / total_sessions
         avg_duration = str(round(avg_seconds // 60)) + " min"
         max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
+        total_duration_formatted = format_duration(timedelta(seconds=total_duration))
 
-    return total_sessions, avg_duration, max_duration
+    return total_sessions, avg_duration, max_duration, total_duration_formatted
 
 # /start handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,10 +332,7 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You need to start the timer first with /start.")
         return
 
-    start_time_str = user_start_times.pop(user_id)
-    start_time = datetime.fromisoformat(start_time_str)
-    end_time_dt = datetime.fromisoformat(end_time)
-    duration = end_time_dt - start_time
+    duration = datetime.fromisoformat(end_time) - datetime.fromisoformat(user_start_times[user_id])
     formatted_duration = format_duration(duration)
 
     save_log({
@@ -312,25 +343,32 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "duration": str(duration)
     })
 
-    total_sessions_month, avg_duration_month, max_duration_month, today_sessions = get_user_monthly_stats(user_id)
-    total_sessions_year, avg_duration_year, max_duration_year = get_user_yearly_stats(user_id)
+    await update.message.reply_text(f"Session ended for user {username}. Duration: {formatted_duration}")
+
+    total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(user_id)
+    total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(user_id)
+    total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(user_id)
 
     await update.message.reply_text(
-        f"User: {username}\n"
-        f"⏱ Session duration: {formatted_duration}\n"
-        f"📅 Today's sessions: {today_sessions}\n"
+        "Today\n"
+        f"📅 Total sessions: {total_sessions_day}\n"
+        f"⏱ Total duration: {total_duration_day}\n"
+        f"📊 Average duration {avg_duration_day}\n"
+        f"💪 Max duration: {max_duration_day}\n"
     )
 
     await update.message.reply_text(
-        "Month statistics\n"
+        "This month\n"
         f"📅 Total sessions: {total_sessions_month}\n"
+        f"⏱ Total duration: {total_duration_month}\n"
         f"📊 Average duration {avg_duration_month}\n"
         f"💪 Max duration: {max_duration_month}\n"
     )
 
     await update.message.reply_text(
-        "Year statistics\n"
+        "This year\n"
         f"📅 Total sessions: {total_sessions_year}\n"
+        f"⏱ Total duration: {total_duration_year}\n"
         f"📊 Average duration {avg_duration_year}\n"
         f"💪 Max duration: {max_duration_year}\n"
     )
@@ -374,6 +412,34 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = user_ids[username_arg]
 
     await update.message.reply_text(f"📦 Report generation for @{username_arg if username_arg else update.effective_user.username}...")
+
+    total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(target_user_id)
+    total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(target_user_id)
+    total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(target_user_id)
+
+    await update.message.reply_text(
+        "Today\n"
+        f"📅 Total sessions: {total_sessions_day}\n"
+        f"⏱ Total duration: {total_duration_day}\n"
+        f"📊 Average duration {avg_duration_day}\n"
+        f"💪 Max duration: {max_duration_day}\n"
+    )
+
+    await update.message.reply_text(
+        "This month\n"
+        f"📅 Total sessions: {total_sessions_month}\n"
+        f"⏱ Total duration: {total_duration_month}\n"
+        f"📊 Average duration {avg_duration_month}\n"
+        f"💪 Max duration: {max_duration_month}\n"
+    )
+
+    await update.message.reply_text(
+        "This year\n"
+        f"📅 Total sessions: {total_sessions_year}\n"
+        f"⏱ Total duration: {total_duration_year}\n"
+        f"📊 Average duration {avg_duration_year}\n"
+        f"💪 Max duration: {max_duration_year}\n"
+    )
 
     # 1. Istogramma durate giornaliere
     daily_plot = generate_histogram_plot(target_user_id)
