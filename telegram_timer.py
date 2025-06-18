@@ -30,6 +30,16 @@ def save_log(entry):
     with open(LOG_FILE, "w") as f:
         json.dump(logs, f, indent=4)
 
+def get_total_sessions(user_id):
+    logs = load_logs()
+    total_sessions = 0
+
+    for entry in logs:
+        if entry["user_id"] == user_id and entry["action"] == "end":
+            total_sessions += 1
+
+    return total_sessions
+
 def generate_histogram_plot(user_id):
     logs = load_logs()
     sessions = []
@@ -320,7 +330,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "timestamp": start_time
     })
 
-    await update.message.reply_text(f"Timer started for user {username}. Send /end to stop the session. Enjoy your session 😉")
+    session_count = get_total_sessions(user_id)
+    session_type = "session" if session_count < 30 else "mission"
+
+    await update.message.reply_text(f"Enjoy your {session_type} 😉")
 
 # /end handler
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -343,30 +356,26 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "duration": str(duration)
     })
 
-    await update.message.reply_text(f"Session ended for user {username}. Duration: {formatted_duration}")
+    total_sessions = get_total_sessions(user_id)
+
+    await update.message.reply_text(f"Session #{total_sessions} ended for user {username}. Duration: {formatted_duration}")
 
     total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(user_id)
     total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(user_id)
     total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(user_id)
 
     await update.message.reply_text(
-        "Today\n"
+        "**Today**\n"
         f"📅 Total sessions: {total_sessions_day}\n"
         f"⏱ Total duration: {total_duration_day}\n"
         f"📊 Average duration {avg_duration_day}\n"
         f"💪 Max duration: {max_duration_day}\n"
-    )
-
-    await update.message.reply_text(
-        "This month\n"
+        "**This month**\n"
         f"📅 Total sessions: {total_sessions_month}\n"
         f"⏱ Total duration: {total_duration_month}\n"
         f"📊 Average duration {avg_duration_month}\n"
         f"💪 Max duration: {max_duration_month}\n"
-    )
-
-    await update.message.reply_text(
-        "This year\n"
+        "**This year**\n"
         f"📅 Total sessions: {total_sessions_year}\n"
         f"⏱ Total duration: {total_duration_year}\n"
         f"📊 Average duration {avg_duration_year}\n"
@@ -418,23 +427,17 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(target_user_id)
 
     await update.message.reply_text(
-        "Today\n"
+        "**Today**\n"
         f"📅 Total sessions: {total_sessions_day}\n"
         f"⏱ Total duration: {total_duration_day}\n"
         f"📊 Average duration {avg_duration_day}\n"
         f"💪 Max duration: {max_duration_day}\n"
-    )
-
-    await update.message.reply_text(
-        "This month\n"
+        "**This month**\n"
         f"📅 Total sessions: {total_sessions_month}\n"
         f"⏱ Total duration: {total_duration_month}\n"
         f"📊 Average duration {avg_duration_month}\n"
         f"💪 Max duration: {max_duration_month}\n"
-    )
-
-    await update.message.reply_text(
-        "This year\n"
+        "**This year**\n"
         f"📅 Total sessions: {total_sessions_year}\n"
         f"⏱ Total duration: {total_duration_year}\n"
         f"📊 Average duration {avg_duration_year}\n"
