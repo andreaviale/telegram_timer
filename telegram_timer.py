@@ -315,6 +315,37 @@ def get_user_yearly_stats(user_id):
 
     return total_sessions, avg_duration, max_duration, total_duration_formatted
 
+def get_user_overall_stats(user_id):
+    logs = load_logs()
+    sessions = []
+    total_duration = 0
+    temp = {}
+
+    for entry in logs:
+        if entry["user_id"] != user_id:
+            continue
+
+        timestamp = datetime.fromisoformat(entry["timestamp"])
+        if entry["action"] == "start":
+            temp["start"] = timestamp
+        elif entry["action"] == "end" and "start" in temp:
+            duration = datetime.fromisoformat(entry["timestamp"]) - temp["start"]
+            sessions.append(duration)
+            total_duration += duration.total_seconds()
+            temp = {}  # reset for next pair
+
+    total_sessions = len(sessions)
+    if total_sessions == 0:
+        avg_duration = "N/A"
+        max_duration = "N/A"
+    else:
+        avg_seconds = sum([s.total_seconds() for s in sessions]) / total_sessions
+        avg_duration = str(round(avg_seconds // 60)) + " min"
+        max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
+        total_duration_formatted = format_duration(timedelta(seconds=total_duration))
+
+    return total_sessions, avg_duration, max_duration, total_duration_formatted
+
 # /start handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -363,23 +394,29 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(user_id)
     total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(user_id)
     total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(user_id)
+    total_sessions_overall, avg_duration_overall, max_duration_overall, total_duration_overall = get_user_overall_stats(user_id)
 
     await update.message.reply_text(
-        "**Today**\n"
+        "TODAY\n"
         f"📅 Total sessions: {total_sessions_day}\n"
         f"⏱ Total duration: {total_duration_day}\n"
         f"📊 Average duration {avg_duration_day}\n"
         f"💪 Max duration: {max_duration_day}\n"
-        "**This month**\n"
+        "THIS MONTH\n"
         f"📅 Total sessions: {total_sessions_month}\n"
         f"⏱ Total duration: {total_duration_month}\n"
         f"📊 Average duration {avg_duration_month}\n"
         f"💪 Max duration: {max_duration_month}\n"
-        "**This year**\n"
+        "THIS YEAR\n"
         f"📅 Total sessions: {total_sessions_year}\n"
         f"⏱ Total duration: {total_duration_year}\n"
         f"📊 Average duration {avg_duration_year}\n"
         f"💪 Max duration: {max_duration_year}\n"
+        "OVERALL\n"
+        f"📅 Total sessions: {total_sessions_overall}\n"
+        f"⏱ Total duration: {total_duration_overall}\n"
+        f"📊 Average duration {avg_duration_overall}\n"
+        f"💪 Max duration: {max_duration_overall}\n"
     )
 
     plot_buf = generate_histogram_plot(user_id)
@@ -425,23 +462,29 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(target_user_id)
     total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(target_user_id)
     total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(target_user_id)
+    total_sessions_overall, avg_duration_overall, max_duration_overall, total_duration_overall = get_user_overall_stats(target_user_id)
 
     await update.message.reply_text(
-        "**Today**\n"
+        "**TODAY**\n"
         f"📅 Total sessions: {total_sessions_day}\n"
         f"⏱ Total duration: {total_duration_day}\n"
         f"📊 Average duration {avg_duration_day}\n"
         f"💪 Max duration: {max_duration_day}\n"
-        "**This month**\n"
+        "**THIS MONTH**\n"
         f"📅 Total sessions: {total_sessions_month}\n"
         f"⏱ Total duration: {total_duration_month}\n"
         f"📊 Average duration {avg_duration_month}\n"
         f"💪 Max duration: {max_duration_month}\n"
-        "**This year**\n"
+        "**THIS YEAR**\n"
         f"📅 Total sessions: {total_sessions_year}\n"
         f"⏱ Total duration: {total_duration_year}\n"
         f"📊 Average duration {avg_duration_year}\n"
         f"💪 Max duration: {max_duration_year}\n"
+        "**OVERALL**\n"
+        f"📅 Total sessions: {total_sessions_overall}\n"
+        f"⏱ Total duration: {total_duration_overall}\n"
+        f"📊 Average duration {avg_duration_overall}\n"
+        f"💪 Max duration: {max_duration_overall}\n"
     )
 
     # 1. Istogramma durate giornaliere
