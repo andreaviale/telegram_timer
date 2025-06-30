@@ -239,6 +239,7 @@ def get_user_daily_stats(user_id):
     if total_sessions == 0:
         avg_duration = "N/A"
         max_duration = "N/A"
+        total_duration_formatted = "00:00:00"
     else:
         avg_seconds = sum([s.total_seconds() for s in sessions]) / total_sessions
         avg_duration = str(round(avg_seconds // 60)) + " min"
