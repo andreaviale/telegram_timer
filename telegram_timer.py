@@ -426,11 +426,11 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     plot_buf = generate_histogram_plot(user_id)
     if plot_buf:
-        await update.message.reply_photo(photo=plot_buf, caption="📊 This month's sessions")
+        await update.message.reply_photo(photo=plot_buf, caption="Duration last 30 days")
 
     timeline_buf = generate_timeline_plot(user_id)
     if timeline_buf:
-        await update.message.reply_photo(photo=timeline_buf, caption="🕒 Consistency")
+        await update.message.reply_photo(photo=timeline_buf, caption="🕒 Consistency last 30 days")
 
     gauss_buf = generate_gaussian_plot(user_id)
     if gauss_buf:
@@ -495,12 +495,12 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 1. Istogramma durate giornaliere
     daily_plot = generate_histogram_plot(target_user_id)
     if daily_plot:
-        await update.message.reply_photo(photo=daily_plot, caption="🗓️ This month's session")
+        await update.message.reply_photo(photo=daily_plot, caption="Duration last 30 days")
 
     # 2. Statistiche media/varianza
     stats_plot = generate_timeline_plot(target_user_id)
     if stats_plot:
-        await update.message.reply_photo(photo=stats_plot, caption="📊 Consistency")
+        await update.message.reply_photo(photo=stats_plot, caption="📊 Consistency last 30 days")
 
     # 3. Campana di Gauss
     gauss_plot = generate_gaussian_plot(target_user_id)
