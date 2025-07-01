@@ -196,7 +196,7 @@ def generate_gaussian_plot(user_id):
 
     # Plot
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.hist(durations, bins=15, density=True, alpha=0.6, color='skyblue', label='Real data')
+    ax.hist(durations, bins=50, density=True, alpha=0.6, color='skyblue', label='Real data')
     ax.plot(x, y, 'r-', label='Normal distribution')
     ax.axvline(mean, color='green', linestyle='--', label=f'Mean: {mean:.1f} min')
     ax.axvline(mean + std_dev, color='orange', linestyle=':', label=f'+1σ: {mean + std_dev:.1f} min')
