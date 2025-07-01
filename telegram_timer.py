@@ -5,6 +5,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import os
 import matplotlib.pyplot as plt
 from io import BytesIO
+from scipy import stats
 
 LOG_FILE = "log.json"
 user_start_times = {}
@@ -201,6 +202,9 @@ def generate_gaussian_plot(user_id):
     ax.axvline(mean, color='green', linestyle='--', label=f'Mean: {mean:.1f} min')
     ax.axvline(mean + std_dev, color='orange', linestyle=':', label=f'+1σ: {mean + std_dev:.1f} min')
     ax.axvline(mean - std_dev, color='orange', linestyle=':', label=f'-1σ: {mean - std_dev:.1f} min')
+    shape, loc, scale = stats.lognorm.fit(durations)
+    # Log-normal distribution
+    ax.plot(x, stats.lognorm.pdf(x, shape, loc, scale), 'b--', label='Log-normal fit')
 
     ax.set_title("Session duration distribution (all data)")
     ax.set_xlabel("Session duration")
