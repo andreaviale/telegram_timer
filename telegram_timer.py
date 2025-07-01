@@ -51,7 +51,7 @@ def generate_histogram_plot(user_id):
 
         ts = datetime.fromisoformat(entry["timestamp"])
         now = datetime.now()
-        if ts.year == now.year and ts.month == now.month:
+        if (ts - now) < timedelta(days=30):
             if entry["action"] == "start":
                 temp["start"] = ts
             elif entry["action"] == "end" and "start" in temp:
@@ -74,7 +74,7 @@ def generate_histogram_plot(user_id):
     plt.bar([d.strftime("%d %b") for d in dates], durations, color='skyblue')
     plt.xlabel("Date")
     plt.ylabel("Total duration (min)")
-    plt.title("Total duration of this month's sessions")
+    plt.title("Total daily duration - last 30 days")
     plt.xticks(rotation=45)
     plt.tight_layout()
 
@@ -93,14 +93,14 @@ def generate_timeline_plot(user_id):
     sessions = []
     temp = {}
 
-    # Raccogli tutte le sessioni utente di questo mese
+    # Raccogli tutte le sessioni utente degli ultimi 30 giorni
     for entry in logs:
         if entry["user_id"] != user_id:
             continue
 
         ts = datetime.fromisoformat(entry["timestamp"])
         now = datetime.now()
-        if ts.year == now.year and ts.month == now.month:
+        if (ts-now) < timedelta(days=30):
             if entry["action"] == "start":
                 temp["start"] = ts
             elif entry["action"] == "end" and "start" in temp:
@@ -152,7 +152,7 @@ def generate_timeline_plot(user_id):
     ax.set_xticks(range(0, 1441, 60))  # ogni ora
     ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 25)],rotation=45)
     ax.set_xlabel("Time")
-    ax.set_title("Consistency")
+    ax.set_title("Consistency - last 30 days")
 
     plt.tight_layout()
 
