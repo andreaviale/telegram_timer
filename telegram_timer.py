@@ -394,9 +394,6 @@ def get_user_overall_stats(user_id):
             "lognorm_std": None
         }
 
-    # You can return or log this data as needed, for example:
-    # print("Log-normal fit:", lognorm_data)
-
     # Calculate Gaussian (normal) distribution parameters if possible
     gaussian_data = {}
     durations_minutes = [s.total_seconds() / 60 for s in sessions if s.total_seconds() > 0]
@@ -481,15 +478,13 @@ async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if args:
-        username_arg = args[0].lstrip("@").lower()  # Rimuove @ e uniforma
+        username_arg = args[0].lstrip("@").lower() 
     else:
-        # Se nessun argomento: usa l'utente che invia il comando
         user = update.effective_user
         target_user_id = user.id
         username_arg = None
 
     if username_arg:
-        # Cerca nei log l'user_id corrispondente al nome utente
         logs = load_logs()
         user_ids = {
             entry["username"].lower(): entry["user_id"]
