@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 from io import BytesIO
 from scipy import stats
+import numpy as np
 
 LOG_FILE = "log.json"
 user_start_times = {}
@@ -183,7 +184,6 @@ def generate_consistency_plot(user_id):
 
 def generate_overall_statistics_plot(user_id):
     """Generate a plot showing the distribution of session durations for a user."""
-    import numpy as np
     from scipy.stats import norm
 
     logs = load_logs()
@@ -206,11 +206,9 @@ def generate_overall_statistics_plot(user_id):
     if not durations:
         return None
 
-    # Calcolo statistico
     mean = np.mean(durations)
     std_dev = np.std(durations)
 
-    # Prepara intervallo x
     x = np.linspace(min(durations), max(durations), 100)
     y = norm.pdf(x, mean, std_dev)
 
@@ -370,7 +368,50 @@ def get_user_overall_stats(user_id):
         max_duration = str(round(max([s.total_seconds() for s in sessions]) // 60) ) + " min"
         total_duration_formatted = format_duration(timedelta(seconds=total_duration))
 
-    return total_sessions, avg_duration, max_duration, total_duration_formatted
+    # Calculate log-normal distribution parameters if possible
+    lognorm_data = {}
+
+    durations_minutes = [s.total_seconds() / 60 for s in sessions if s.total_seconds() > 0]
+    if len(durations_minutes) > 1 and all(d > 0 for d in durations_minutes):
+        shape, loc, scale = stats.lognorm.fit(durations_minutes, floc=0)
+        lognorm_mean = np.exp(np.log(scale) + (shape**2) / 2)
+        lognorm_std = np.sqrt((np.exp(shape**2) - 1) * np.exp(2 * np.log(scale) + shape**2))
+        lognorm_data = {
+            "lognorm_shape": shape,
+            "lognorm_loc": loc,
+            "lognorm_scale": scale,
+            "lognorm_mean": round(lognorm_mean, 2),
+            "lognorm_std": round(lognorm_std, 2)
+        }
+    else:
+        lognorm_data = {
+            "lognorm_shape": None,
+            "lognorm_loc": None,
+            "lognorm_scale": None,
+            "lognorm_mean": None,
+            "lognorm_std": None
+        }
+
+    # You can return or log this data as needed, for example:
+    # print("Log-normal fit:", lognorm_data)
+
+    # Calculate Gaussian (normal) distribution parameters if possible
+    gaussian_data = {}
+    durations_minutes = [s.total_seconds() / 60 for s in sessions if s.total_seconds() > 0]
+    if len(durations_minutes) > 1:
+        mean = np.mean(durations_minutes)
+        std = np.std(durations_minutes)
+        gaussian_data = {
+            "gaussian_mean": round(mean, 2),
+            "gaussian_std": round(std, 2)
+        }
+    else:
+        gaussian_data = {
+            "gaussian_mean": None,
+            "gaussian_std": None
+        }
+
+    return total_sessions, avg_duration, max_duration, total_duration_formatted, lognorm_data, gaussian_data
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the timer for a user."""
@@ -390,6 +431,79 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session_count = get_total_sessions(user_id)
 
     await update.message.reply_text(f"Timer started for user {username}. This is session #{session_count + 1}.")
+
+async def report(user_id, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(user_id)
+    total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(user_id)
+    total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(user_id)
+    total_sessions_overall, avg_duration_overall, max_duration_overall, total_duration_overall, lognorm_data, gaussian_data = get_user_overall_stats(user_id)
+
+    await update.message.reply_text(
+        "TODAY\n"
+        f"📅 Total sessions: {total_sessions_day}\n"
+        f"⏱ Total duration: {total_duration_day}\n"
+        f"📊 Average duration {avg_duration_day}\n"
+        f"💪 Max duration: {max_duration_day}\n"
+        "THIS MONTH\n"
+        f"📅 Total sessions: {total_sessions_month}\n"
+        f"⏱ Total duration: {total_duration_month}\n"
+        f"📊 Average duration {avg_duration_month}\n"
+        f"💪 Max duration: {max_duration_month}\n"
+        "THIS YEAR\n"
+        f"📅 Total sessions: {total_sessions_year}\n"
+        f"⏱ Total duration: {total_duration_year}\n"
+        f"📊 Average duration {avg_duration_year}\n"
+        f"💪 Max duration: {max_duration_year}\n"
+        "OVERALL\n"
+        f"📅 Total sessions: {total_sessions_overall}\n"
+        f"⏱ Total duration: {total_duration_overall}\n"
+        f"📊 Average duration {avg_duration_overall}\n"
+        f"💪 Max duration: {max_duration_overall}\n"
+        f"📈 Log-normal fit:\tmean={lognorm_data['lognorm_mean']:.1f} min, std={lognorm_data['lognorm_std']:.1f} min\n"
+        f"📉 Gaussian fit:\tmean={gaussian_data['gaussian_mean']:.1f} min, std={gaussian_data['gaussian_std']:.1f} min"
+    )
+
+    plot_buf = generate_histogram_plot(user_id)
+    if plot_buf:
+        await update.message.reply_photo(photo=plot_buf, caption="Duration last 30 days")
+
+    timeline_buf = generate_consistency_plot(user_id)
+    if timeline_buf:
+        await update.message.reply_photo(photo=timeline_buf, caption="🕒 Consistency last 30 days")
+
+    gauss_buf = generate_overall_statistics_plot(user_id)
+    if gauss_buf:
+        await update.message.reply_photo(photo=gauss_buf, caption="📈 Duration distribution")
+
+async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+
+    if args:
+        username_arg = args[0].lstrip("@").lower()  # Rimuove @ e uniforma
+    else:
+        # Se nessun argomento: usa l'utente che invia il comando
+        user = update.effective_user
+        target_user_id = user.id
+        username_arg = None
+
+    if username_arg:
+        # Cerca nei log l'user_id corrispondente al nome utente
+        logs = load_logs()
+        user_ids = {
+            entry["username"].lower(): entry["user_id"]
+            for entry in logs
+            if "username" in entry
+        }
+
+        if username_arg not in user_ids:
+            await update.message.reply_text(f"❌ Username @{username_arg} not found.")
+            return
+
+        user_id = user_ids[username_arg]
+    else:
+        return
+
+    await report(user_id, update, context)
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """End the timer for a user and provide statistics."""
@@ -416,45 +530,7 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"Session #{total_sessions} ended for user {username}. Duration: {formatted_duration}")
 
-    total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(user_id)
-    total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(user_id)
-    total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(user_id)
-    total_sessions_overall, avg_duration_overall, max_duration_overall, total_duration_overall = get_user_overall_stats(user_id)
-
-    await update.message.reply_text(
-        "TODAY\n"
-        f"📅 Total sessions: {total_sessions_day}\n"
-        f"⏱ Total duration: {total_duration_day}\n"
-        f"📊 Average duration {avg_duration_day}\n"
-        f"💪 Max duration: {max_duration_day}\n"
-        "THIS MONTH\n"
-        f"📅 Total sessions: {total_sessions_month}\n"
-        f"⏱ Total duration: {total_duration_month}\n"
-        f"📊 Average duration {avg_duration_month}\n"
-        f"💪 Max duration: {max_duration_month}\n"
-        "THIS YEAR\n"
-        f"📅 Total sessions: {total_sessions_year}\n"
-        f"⏱ Total duration: {total_duration_year}\n"
-        f"📊 Average duration {avg_duration_year}\n"
-        f"💪 Max duration: {max_duration_year}\n"
-        "OVERALL\n"
-        f"📅 Total sessions: {total_sessions_overall}\n"
-        f"⏱ Total duration: {total_duration_overall}\n"
-        f"📊 Average duration {avg_duration_overall}\n"
-        f"💪 Max duration: {max_duration_overall}\n"
-    )
-
-    plot_buf = generate_histogram_plot(user_id)
-    if plot_buf:
-        await update.message.reply_photo(photo=plot_buf, caption="Duration last 30 days")
-
-    timeline_buf = generate_consistency_plot(user_id)
-    if timeline_buf:
-        await update.message.reply_photo(photo=timeline_buf, caption="🕒 Consistency last 30 days")
-
-    gauss_buf = generate_overall_statistics_plot(user_id)
-    if gauss_buf:
-        await update.message.reply_photo(photo=gauss_buf, caption="📈 Duration distribution")
+    await report(user_id, update, context)
 
 # Run the bot
 if __name__ == '__main__':
@@ -463,6 +539,7 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("end", end))
+    app.add_handler(CommandHandler("stats", show_stats))
 
     print("Bot is running...")
     app.run_polling()
