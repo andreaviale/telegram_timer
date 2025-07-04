@@ -376,12 +376,14 @@ def get_user_overall_stats(user_id):
         shape, loc, scale = stats.lognorm.fit(durations_minutes, floc=0)
         lognorm_mean = np.exp(np.log(scale) + (shape**2) / 2)
         lognorm_std = np.sqrt((np.exp(shape**2) - 1) * np.exp(2 * np.log(scale) + shape**2))
+        lognorm_mode = np.exp(np.log(scale) - shape**2) 
         lognorm_data = {
             "lognorm_shape": shape,
             "lognorm_loc": loc,
             "lognorm_scale": scale,
             "lognorm_mean": round(lognorm_mean, 2),
-            "lognorm_std": round(lognorm_std, 2)
+            "lognorm_std": round(lognorm_std, 2),
+            "lognorm_mode": round(lognorm_mode, 2)
         }
     else:
         lognorm_data = {
@@ -459,7 +461,7 @@ async def report(user_id, update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⏱ Total duration: {total_duration_overall}\n"
         f"📊 Average duration {avg_duration_overall}\n"
         f"💪 Max duration: {max_duration_overall}\n"
-        f"📈 Log-normal fit:\tmean={lognorm_data['lognorm_mean']:.1f} min, std={lognorm_data['lognorm_std']:.1f} min\n"
+        f"📈 Log-normal fit:\tmean={lognorm_data['lognorm_mean']:.1f} min, mode={lognorm_data['lognorm_mode']:.1f} min, std={lognorm_data['lognorm_std']:.1f} min\n"
         f"📉 Gaussian fit:\tmean={gaussian_data['gaussian_mean']:.1f} min, std={gaussian_data['gaussian_std']:.1f} min"
     )
 
