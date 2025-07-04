@@ -1,0 +1,17 @@
+services:
+  telegram_timer:
+    image: telegram-timer
+    container_name: telegram_timer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    environment:
+      - TOKEN=${TOKEN}
+    restart: unless-stopped
+    command: python telegram_timer.py
+
+networks:
+  default:
+    driver: bridge

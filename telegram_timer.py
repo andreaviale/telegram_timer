@@ -11,6 +11,13 @@ LOG_FILE = "log.json"
 user_start_times = {}
 
 def format_duration(td):
+    """Format a timedelta object into a string of the form 'HHh MMm SSs'."""
+    if not isinstance(td, timedelta):
+        raise ValueError("Input must be a timedelta object")
+    if td.total_seconds() < 0:
+        raise ValueError("Negative timedelta is not allowed")
+    if td.total_seconds() == 0:
+        return "00h 00m 00s"
     total_seconds = int(td.total_seconds())
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
@@ -19,19 +26,29 @@ def format_duration(td):
 
 # Load existing logs
 def load_logs():
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r") as f:
+    """Load logs from the JSON file."""
+    if not os.path.exists(LOG_FILE):
+        return []
+    # If the file exists, read and return its content
+    with open(LOG_FILE, "r") as f:
+        try:
             return json.load(f)
-    return []
+        except json.JSONDecodeError:
+            # If the file is empty or corrupted, return an empty list
+            return []
 
 # Save a new log entry
 def save_log(entry):
+    """Save a new log entry to the JSON file."""
+    if not isinstance(entry, dict):
+        raise ValueError("Log entry must be a dictionary")
     logs = load_logs()
     logs.append(entry)
     with open(LOG_FILE, "w") as f:
         json.dump(logs, f, indent=4)
 
 def get_total_sessions(user_id):
+    """Get the total number of sessions for a user."""
     logs = load_logs()
     total_sessions = 0
 
@@ -42,6 +59,7 @@ def get_total_sessions(user_id):
     return total_sessions
 
 def generate_histogram_plot(user_id):
+    """Generate a histogram plot of session durations for the last 30 days."""
     logs = load_logs()
     sessions = []
     temp = {}
@@ -57,11 +75,11 @@ def generate_histogram_plot(user_id):
                 temp["start"] = ts
             elif entry["action"] == "end" and "start" in temp:
                 duration = ts - temp["start"]
-                sessions.append((temp["start"].date(), duration.total_seconds() / 60))  # minuti
+                sessions.append((temp["start"].date(), duration.total_seconds() / 60))  
                 temp = {}
 
     if not sessions:
-        return None  # niente da mostrare
+        return None  # nothing to show
 
     daily_totals = {}
     for date, minutes in sessions:
@@ -85,16 +103,15 @@ def generate_histogram_plot(user_id):
     plt.close()
     return buf
 
-def generate_timeline_plot(user_id):
-    from matplotlib.dates import DateFormatter
-    import matplotlib.dates as mdates
+def generate_consistency_plot(user_id):
+    """Generate a horizontal bar plot showing user session consistency over the last 30 days."""
     from collections import defaultdict
 
     logs = load_logs()
     sessions = []
     temp = {}
 
-    # Raccogli tutte le sessioni utente degli ultimi 30 giorni
+    # Collect sessions for the user
     for entry in logs:
         if entry["user_id"] != user_id:
             continue
@@ -111,13 +128,13 @@ def generate_timeline_plot(user_id):
     if not sessions:
         return None
 
-    # Raggruppa per giorno
+    # Group by day
     daily_sessions = defaultdict(list)
     for start, end in sessions:
         day = start.date()
         daily_sessions[day].append((start, end))
 
-    # Ordina i giorni
+    # Order days and prepare data for plotting
     sorted_days = sorted(daily_sessions.keys())
     y_labels = [day.strftime("%d %b") for day in sorted_days]
     y_pos = list(range(len(sorted_days)))
@@ -125,15 +142,15 @@ def generate_timeline_plot(user_id):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, day in enumerate(sorted_days):
-        # Weekend: sabato (5), domenica (6)
+        # Set background color for weekends
         if day.weekday() in [5, 6]:
-            ax.axhspan(i - 0.5, i + 0.5, color="#f0f0f0")  # sfondo grigio chiaro
+            ax.axhspan(i - 0.5, i + 0.5, color="#f0f0f0")  # light gray for weekends
 
         for start, end in daily_sessions[day]:
             duration_minutes = (end - start).total_seconds() / 60
             start_minutes = start.hour * 60 + start.minute + start.second / 60
 
-            # Colore in base alla durata
+            # Color based on duration
             if duration_minutes <= 20:
                 color = "green"
             elif duration_minutes <= 30:
@@ -143,14 +160,14 @@ def generate_timeline_plot(user_id):
 
             ax.barh(i, duration_minutes, left=start_minutes, height=0.4, color=color, edgecolor="black")
 
-    # Etichette asse Y
+    # Y-axis labels
     ax.set_yticks(y_pos)
     ax.set_yticklabels(y_labels)
     ax.invert_yaxis()
 
-    # Etichette asse X (orario)
-    ax.set_xlim(0, 1440)  # 0 → 1440 minuti = 24 ore
-    ax.set_xticks(range(0, 1441, 60))  # ogni ora
+    # X-axis labels (time in minutes)
+    ax.set_xlim(0, 1440)  # 0 → 1440 minutes = 24 hours
+    ax.set_xticks(range(0, 1441, 60))  # every hour
     ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 25)],rotation=45)
     ax.set_xlabel("Time")
     ax.set_title("Consistency - last 30 days")
@@ -163,7 +180,8 @@ def generate_timeline_plot(user_id):
     plt.close()
     return buf
 
-def generate_gaussian_plot(user_id):
+def generate_overall_statistics_plot(user_id):
+    """Generate a plot showing the distribution of session durations for a user."""
     import numpy as np
     from scipy.stats import norm
 
@@ -203,6 +221,7 @@ def generate_gaussian_plot(user_id):
     ax.axvline(mean + std_dev, color='orange', linestyle=':', label=f'+1σ: {mean + std_dev:.1f} min')
     ax.axvline(mean - std_dev, color='orange', linestyle=':', label=f'-1σ: {mean - std_dev:.1f} min')
     shape, loc, scale = stats.lognorm.fit(durations)
+
     # Log-normal distribution
     ax.plot(x, stats.lognorm.pdf(x, shape, loc, scale), 'b--', label='Log-normal fit')
 
@@ -321,6 +340,7 @@ def get_user_yearly_stats(user_id):
     return total_sessions, avg_duration, max_duration, total_duration_formatted
 
 def get_user_overall_stats(user_id):
+    """Get overall stats for a user across all time."""
     logs = load_logs()
     sessions = []
     total_duration = 0
@@ -351,8 +371,8 @@ def get_user_overall_stats(user_id):
 
     return total_sessions, avg_duration, max_duration, total_duration_formatted
 
-# /start handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start the timer for a user."""
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
     start_time = datetime.now().isoformat()
@@ -371,8 +391,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"Enjoy your {session_type} 😉")
 
-# /end handler
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """End the timer for a user and provide statistics."""
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
     end_time = datetime.now().isoformat()
@@ -428,95 +448,21 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if plot_buf:
         await update.message.reply_photo(photo=plot_buf, caption="Duration last 30 days")
 
-    timeline_buf = generate_timeline_plot(user_id)
+    timeline_buf = generate_consistency_plot(user_id)
     if timeline_buf:
         await update.message.reply_photo(photo=timeline_buf, caption="🕒 Consistency last 30 days")
 
-    gauss_buf = generate_gaussian_plot(user_id)
+    gauss_buf = generate_overall_statistics_plot(user_id)
     if gauss_buf:
         await update.message.reply_photo(photo=gauss_buf, caption="📈 Duration distribution")
 
-async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-
-    if args:
-        username_arg = args[0].lstrip("@").lower()  # Rimuove @ e uniforma
-    else:
-        # Se nessun argomento: usa l'utente che invia il comando
-        user = update.effective_user
-        target_user_id = user.id
-        username_arg = None
-
-    if username_arg:
-        # Cerca nei log l'user_id corrispondente al nome utente
-        logs = load_logs()
-        user_ids = {
-            entry["username"].lower(): entry["user_id"]
-            for entry in logs
-            if "username" in entry
-        }
-
-        if username_arg not in user_ids:
-            await update.message.reply_text(f"❌ Username @{username_arg} not found.")
-            return
-
-        target_user_id = user_ids[username_arg]
-
-    await update.message.reply_text(f"📦 Report generation for @{username_arg if username_arg else update.effective_user.username}...")
-
-    total_sessions_day, avg_duration_day, max_duration_day, total_duration_day = get_user_daily_stats(target_user_id)
-    total_sessions_month, avg_duration_month, max_duration_month, total_duration_month = get_user_monthly_stats(target_user_id)
-    total_sessions_year, avg_duration_year, max_duration_year, total_duration_year = get_user_yearly_stats(target_user_id)
-    total_sessions_overall, avg_duration_overall, max_duration_overall, total_duration_overall = get_user_overall_stats(target_user_id)
-
-    await update.message.reply_text(
-        "**TODAY**\n"
-        f"📅 Total sessions: {total_sessions_day}\n"
-        f"⏱ Total duration: {total_duration_day}\n"
-        f"📊 Average duration {avg_duration_day}\n"
-        f"💪 Max duration: {max_duration_day}\n"
-        "**THIS MONTH**\n"
-        f"📅 Total sessions: {total_sessions_month}\n"
-        f"⏱ Total duration: {total_duration_month}\n"
-        f"📊 Average duration {avg_duration_month}\n"
-        f"💪 Max duration: {max_duration_month}\n"
-        "**THIS YEAR**\n"
-        f"📅 Total sessions: {total_sessions_year}\n"
-        f"⏱ Total duration: {total_duration_year}\n"
-        f"📊 Average duration {avg_duration_year}\n"
-        f"💪 Max duration: {max_duration_year}\n"
-        "**OVERALL**\n"
-        f"📅 Total sessions: {total_sessions_overall}\n"
-        f"⏱ Total duration: {total_duration_overall}\n"
-        f"📊 Average duration {avg_duration_overall}\n"
-        f"💪 Max duration: {max_duration_overall}\n"
-    )
-
-    # 1. Istogramma durate giornaliere
-    daily_plot = generate_histogram_plot(target_user_id)
-    if daily_plot:
-        await update.message.reply_photo(photo=daily_plot, caption="Duration last 30 days")
-
-    # 2. Statistiche media/varianza
-    stats_plot = generate_timeline_plot(target_user_id)
-    if stats_plot:
-        await update.message.reply_photo(photo=stats_plot, caption="📊 Consistency last 30 days")
-
-    # 3. Campana di Gauss
-    gauss_plot = generate_gaussian_plot(target_user_id)
-    if gauss_plot:
-        await update.message.reply_photo(photo=gauss_plot, caption="📈 Duration distribution")
-
-    await update.message.reply_text("✅ Report completato.")
-
 # Run the bot
 if __name__ == '__main__':
-    from settings import TOKEN
+    TOKEN = os.getenv("TOKEN")
 
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("end", end))
-    app.add_handler(CommandHandler("report", report))
 
     print("Bot is running...")
     app.run_polling()
