@@ -104,7 +104,8 @@ def generate_histogram_plot(user_id):
     return buf
 
 def generate_consistency_plot(user_id):
-    """Generate a horizontal bar plot showing user session consistency over the last 30 days."""
+    """Generate a horizontal bar plot showing user session consistency of your 
+     kakastrollenzie over the last 30 days."""
     from collections import defaultdict
 
     logs = load_logs()
@@ -387,9 +388,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
 
     session_count = get_total_sessions(user_id)
-    session_type = "session" if session_count < 30 else "mission"
 
-    await update.message.reply_text(f"Enjoy your {session_type} 😉")
+    await update.message.reply_text(f"Timer started for user {username}. This is session #{session_count + 1}.")
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """End the timer for a user and provide statistics."""

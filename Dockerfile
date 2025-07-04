@@ -1,17 +1,17 @@
-# Usa un'immagine ufficiale di Python
+# Use an official Python image as the base
 FROM python:3.11-slim
 
-# Imposta la directory di lavoro
+# Set the working directory
 WORKDIR /app
 
-# Copia i file necessari
+# Copy the necessary files
 COPY . .
 
-# Installa le dipendenze
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Variabile d'ambiente per Python logging
+# Environment variable for Python logging
 ENV PYTHONUNBUFFERED=1
 
-# Avvia il bot
+# Start the bot
 CMD ["python", "telegram_timer.py"]
